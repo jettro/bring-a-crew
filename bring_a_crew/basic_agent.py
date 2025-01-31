@@ -1,5 +1,4 @@
 import re
-
 from dotenv import load_dotenv
 import logging
 
@@ -11,7 +10,10 @@ from ollama import ChatResponse
 # MODEL = 'deepseek-r1:14b'
 MODEL = 'phi4'
 
-system_prompt = """
+
+def create_system_prompt(actions):
+    actions_str = "\n".join([f" - `{action}`; for {value["description"]}" for action, value in actions.items()])
+    return f"""
 You are an AI agent following the ReAct framework, where you **Think**, **Act**, and process **Observations** in response to a given **Question**.  During thinking you analyse the question, break it down into subquestions, and decide on the actions to take to answer the question. You then act by performing the actions you decided on. After each action, you pause to observe the results of the action. You then continue the cycle by thinking about the new observation and deciding on the next action to take. You continue this cycle until you have enough information to answer the original question.
 
 You will always follow this structured format:
@@ -34,9 +36,8 @@ Rules:
 2. Never generate output after "PAUSE"
 3. Observations will be provided as a response to an action; never generate your own output for an action.
 4. These are the only available actions:
- - `calculate`; for calculator style math operations only
- - `dog_weight_for_breed`; for finding the weight of a dog breed
- 
+{actions_str}
+
 Example Interactions:
 - User Input:
 What is the weight for a bulldog?
@@ -52,27 +53,75 @@ User Provides an Observation:
 Model Continues:
 Observation: a Bulldogs average weight is 40 lbs
 Think: Now that I have the result, I can provide the final answer.
-Answer: The average weight for a Bulldog is 40 lbs. 
+Answer: The average weight for a Bulldog is 40 lbs.
 """.strip()
 
 
 class Agent:
-    def __init__(self, system=""):
+    def __init__(self, system="", actions=None):
         self.log = logging.getLogger("main.Agent")
-        self.system = system
-        self.messages = []
-        if self.system:
-            self.log.debug(f"Agent initialized for system {self.system}")
-            self.messages.append({"role": "system", "content": system})
+        self.log.info("Initializing Agent")
 
-    def __call__(self, message):
+        # Initialize the messages with the system message
+        self.messages = []
+        if system:
+            self.messages.append({"role": "system", "content": system})
+            self.log.debug(f"Agent initialized for system {system}")
+
+        # Initialize the known actions
+        self.known_actions = {}
+        if actions is not None:
+            for action, value in actions.items():
+                self.known_actions[action] = value["function"]
+
+        self.max_turns = 10
+        self.action_re = re.compile(r'^Action: (\w+): (.*)$')
+        self.answer_re = re.compile(r'^Answer: (.*)$')
+
+    def handle_user_message(self, message):
         self.log.info(f"Received message: {message}")
         self.messages.append({"role": "user", "content": message})
-        result = self.execute()
+        result = self.__execute()
         self.messages.append({"role": "assistant", "content": result})
         return result
 
-    def execute(self) -> str:
+    def ask_question(self, question):
+        i = 0
+        next_prompt = question
+        while i < self.max_turns:
+            i += 1
+            result = self.handle_user_message(next_prompt)
+
+            # Check if there is an action to run or an answer to return
+            actions = [self.action_re.match(a) for a in result.split('\n') if self.action_re.match(a)]
+            if actions:
+                next_prompt = self.__execute_action(actions)
+            else:
+                return self.__extract_answer(result)
+
+    def __execute_action(self, actions):
+        action, action_input = actions[0].groups()
+        if action not in self.known_actions:
+            main_log.error("Unknown action: %s: %s", action, action_input)
+            raise Exception("Unknown action: {}: {}".format(action, action_input))
+
+        main_log.info(" -- running %s %s", action, action_input)
+        observation = self.known_actions[action](action_input)
+
+        main_log.info("Observation: %s", observation)
+        return f"Observation: {observation}"
+
+    def __extract_answer(self, result):
+        answers = [self.answer_re.match(answer) for answer in result.split('\n') if self.answer_re.match(answer)]
+        if answers:
+            # There is an answer to return
+            main_log.info("Final answer: %s", answers[0].groups()[0])
+            return answers[0].groups()[0]
+        else:
+            main_log.error("No action or answer found in: %s", result)
+            raise Exception("No action or answer found in: {}".format(result))
+
+    def __execute(self) -> str:
         response: ChatResponse = chat(
             model=MODEL,
             messages=self.messages,
@@ -87,62 +136,84 @@ class Agent:
         return response.message.content
 
 
-def calculate(what):
-    return eval(what)
-
-
-def average_dog_weight(name: str):
-    main_log.info("Calculating average dog weight for '%s'", name)
+def find_person_availability(name: str):
+    main_log.info("Finding person availability for '%s'", name)
     compare_name = name.lower().strip()
-    if compare_name == "scottish terrier":
-        return "Scottish Terriers average 20 lbs"
-    elif compare_name == "border collie":
-        return "a Border Collies average weight is 37 lbs"
-    elif compare_name == "poodle":
-        return "a poodles average weight is 27 lbs"
+    if compare_name == "jettro":
+        return "Jettro is available on Monday and Tuesday"
+    elif compare_name == "daniel":
+        return "Daniel is available on Monday till Thursday"
+    elif compare_name == "joey":
+        return "Joey is available from Monday till Friday"
     else:
-        return (f"Have no idea about the average weight for {name}, but an "
-                f"average dog weights 50 lbs")
+        return f"Have no idea about the availability for {name}"
 
 
-def query(question, max_turns=10):
-    i = 0
-    bot = Agent(system_prompt)
-    next_prompt = question
-    while i < max_turns:
-        i += 1
-        result = bot(next_prompt)
-        actions = [action_re.match(a) for a in result.split('\n') if action_re.match(a)]
-        if actions:
-            # There is an action to run
-            action, action_input = actions[0].groups()
-            if action not in known_actions:
-                main_log.error("Unknown action: %s: %s", action, action_input)
-                raise Exception("Unknown action: {}: {}".format(action, action_input))
-            main_log.info(" -- running %s %s", action, action_input)
-            observation = known_actions[action](action_input)
-            main_log.info("Observation: %s", observation)
-            next_prompt = "Observation: {}".format(observation)
-        else:
-            main_log.info("About to return the final answer: %s", result)
-            return
+def find_meeting_room_availability(name: str):
+    main_log.info("Finding meeting room availability for '%s'", name)
+    compare_name = name.lower().strip()
+    if compare_name == "room 1":
+        return "Room 1 is available on Monday and Tuesday"
+    elif compare_name == "room 2":
+        return "Room 2 is available on Tuesday and Thursday"
+    elif compare_name == "room 3":
+        return "Room 3 is available from Monday till Friday"
+    else:
+        return f"Have no idea about the availability for {name}"
 
 
-known_actions = {
-    "calculate": calculate,
-    "dog_weight_for_breed": average_dog_weight
-}
+def complete_agent(question=None):
+    # Set up the Agent
+    meeting_actions = {
+        "find_person_availability": {
+            "description": "finding a person using the name and returning their availability",
+            "function": find_person_availability
+        },
+        "find_meeting_room_availability": {
+            "description": "finding a meeting room using the name and returning its availability",
+            "function": find_meeting_room_availability
+        }
+    }
+    system_prompt = create_system_prompt(meeting_actions)
+    bot = Agent(system_prompt, meeting_actions)
 
-action_re = re.compile(r'^Action: (\w+): (.*)$')
+    # Ask a question
+    final_answer = bot.ask_question(sample_question)
+    print("Answer:", final_answer)
+
+def reasoning_agent(question=None):
+    bot = Agent("You are an assistant, breaking down the question and returning the reasoning to answer it.")
+    response = bot.handle_user_message(question)
+    print(response)
+
+def system_prompt_agent(question=None):
+    # Set up the Agent
+    meeting_actions = {
+        "find_person_availability": {
+            "description": "finding a person using the name and returning their availability",
+            "function": find_person_availability
+        },
+        "find_meeting_room_availability": {
+            "description": "finding a meeting room using the name and returning its availability",
+            "function": find_meeting_room_availability
+        }
+    }
+    system_prompt = create_system_prompt(meeting_actions)
+    bot = Agent(system_prompt, meeting_actions)
+    response = bot.handle_user_message(question)
+    print(response)
+    response = bot.handle_user_message("Observation: Daniel is available on Monday till Thursday ")
+    print(response)
+
 
 if __name__ == '__main__':
-    # https://til.simonwillison.net/llms/python-react-pattern
     _ = load_dotenv()
     setup_logging()
     main_log = logging.getLogger("main")
     main_log.setLevel(logging.INFO)
     logging.getLogger("main.Agent").setLevel(logging.INFO)
 
-    question = """I have 2 dogs, a border collie and a scottish terrier. \
-    What is their combined weight?"""
-    query(question)
+    sample_question = """I am Jettro, can you book a meeting for me with Daniel and Joey on Monday in Room 3?"""
+    complete_agent(sample_question)
+    # reasoning_agent(sample_question)
+    # system_prompt_agent(sample_question)
