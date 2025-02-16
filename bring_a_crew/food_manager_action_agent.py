@@ -1,5 +1,3 @@
-from argparse import Action
-
 from bring_a_crew.action_agent import ActionAgent
 
 food_manager = ActionAgent(

@@ -1,13 +1,13 @@
 import json
-import logging
 import re
 from abc import ABC
 
 from ollama import ChatResponse
 from ollama import chat
 
+from bring_a_crew import action_agent_log
+
 MODEL = 'phi4'
-action_agent_log = logging.getLogger("main.ActionAgent")
 
 
 def create_system_prompt(actions, agent_intro: str):
