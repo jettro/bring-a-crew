@@ -1,6 +1,7 @@
 import json
 import re
 from abc import ABC
+from datetime import datetime
 
 from ollama import ChatResponse
 from ollama import chat
@@ -18,6 +19,8 @@ def create_system_prompt(actions, agent_intro: str):
 {agent_intro}
 
 You are an AI agent following the ReAct framework, where you **Think**, **Act**, and process **Observations** in response to a given **Question**.  During thinking you analyse the question, break it down into subquestions, and decide on the actions to take to answer the question. You then act by performing the actions you decided on. After each action, you pause to observe the results of the action. You then continue the cycle by thinking about the new observation and deciding on the next action to take. You continue this cycle until you have enough information to answer the original question.
+
+The date for today is: {datetime.now().strftime("%Y-%m-%d")}
 
 Arguments for an action are provided as a json document with the arguments as keys and the values as the values.
 
@@ -88,7 +91,7 @@ class ActionAgent(ABC):
     def __handle_user_message(self, message):
         self.log.info(f"Received message: {message}")
         self.memory.append({"role": "user", "content": message})
-        result = self.__execute()
+        result = self.__call_llm()
         self.memory.append({"role": "assistant", "content": result})
         return result
 
@@ -131,7 +134,7 @@ class ActionAgent(ABC):
             self.log.error("No action or answer found in: %s", result)
             raise Exception("No action or answer found in: {}".format(result))
 
-    def __execute(self) -> str:
+    def __call_llm(self) -> str:
         response: ChatResponse = chat(
             model=MODEL,
             messages=self.memory,

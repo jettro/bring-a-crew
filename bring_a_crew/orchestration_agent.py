@@ -1,6 +1,7 @@
 import logging
 import re
 from abc import ABC
+from datetime import datetime
 
 from ollama import ChatResponse
 from ollama import chat
@@ -14,6 +15,8 @@ def create_system_prompt(agents: list[ActionAgent]):
     agents_str = "\n".join([f" - `{agent.name}`; for {agent.intro}" for agent in agents])
     return f"""
 You are an AI Orchestration agent following the ReAct framework, where you **Think**, **Act**, and process **Observations** in response to a given **Question**.  During thinking you analyse the question, break it down into subquestions, and decide on the actions to take to answer the question. You then act by calling other agents. After each action, you pause to observe the results of the action. You then continue the cycle by thinking about the new observation and deciding on the next action to take. You continue this cycle until you have enough information to answer the original question.
+
+The date for today is: {datetime.now().strftime("%Y-%m-%d")}
 
 You will always follow this structured format:
 Question: [User’s question]
