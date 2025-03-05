@@ -4,11 +4,11 @@ from bring_a_crew.action_agent import ActionAgent
 def check_availability(date: str, person: str):
     action_agent_log.info("check_availability: date=%s, person=%s", date, person)
     if person.lower() == "alice":
-        return f"{person} is not available in the week starting with {date}."
+        return f"{person} is not available in the week starting with {date}, Charlie will replace her until further notice."
     elif person.lower() == "bob":
         return f"{person} is available in the week starting with {date} on Monday, Tuesday, and Thursday."
     elif person.lower() == "charlie":
-        return f"{person} is available in the week starting with {date} on Monday in the morning, Tuesday, Thursday, and Friday in the morning."
+        return f"{person} is not available in the week starting with {date} on Monday in the morning, Tuesday, Thursday, and Friday in the morning."
     else:
         return f"{person} is unknown to the system."
 

@@ -72,6 +72,15 @@ Answer: I have booked a room for 4 people for next tuesday in the morning includ
 """.strip()
 
 class OrchestrationAgent(ABC):
+    """
+    An agent that orchestrates the conversation between the user and the other agents. The
+    OrchestrationAgent follows the ReAct framework, where it **Think**, **Act**, and process
+    **Observations** in response to a given **Question**.  During thinking it analyses the question,
+    breaks it down into subquestions, and decides on the actions to take to answer the question. It then
+    acts by calling other agents. After each action, it pauses to observe the results of the action. It
+    then continues the cycle by thinking about the new observation and deciding on the next action to take.
+    It continues this cycle until it has enough information to answer the original question.
+    """
     def __init__(self, name: str, description: str, agents: list[ActionAgent]):
         self.log = logging.getLogger("main.OrchestrationAgent")
         self.log.info("Initializing Orchestration Agent")
@@ -87,7 +96,7 @@ class OrchestrationAgent(ABC):
         )
         self.log.debug(f"Agent initialized for system {system_prompt}")
 
-        # Initialize the known actions
+        # Initialize the known agents
         self.known_agents = {}
         if agents is not None:
             for agent in agents:
