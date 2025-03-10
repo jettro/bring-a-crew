@@ -6,8 +6,6 @@ from bring_a_crew.setup_logging import setup_logging
 from ollama import chat
 from ollama import ChatResponse
 
-# MODEL = 'deepseek-r1:8b'
-# MODEL = 'deepseek-r1:14b'
 MODEL = 'phi4'
 
 
@@ -181,30 +179,6 @@ def complete_agent(question=None):
     final_answer = bot.ask_question(sample_question)
     print("Answer:", final_answer)
 
-def reasoning_agent(question=None):
-    bot = Agent("You are an assistant, breaking down the question and returning the reasoning to answer it.")
-    response = bot.handle_user_message(question)
-    print(response)
-
-def system_prompt_agent(question=None):
-    # Set up the Agent
-    meeting_actions = {
-        "find_person_availability": {
-            "description": "finding a person using the name and returning their availability",
-            "function": find_person_availability
-        },
-        "find_meeting_room_availability": {
-            "description": "finding a meeting room using the name and returning its availability",
-            "function": find_meeting_room_availability
-        }
-    }
-    system_prompt = create_system_prompt(meeting_actions)
-    bot = Agent(system_prompt, meeting_actions)
-    response = bot.handle_user_message(question)
-    print(response)
-    response = bot.handle_user_message("Observation: Daniel is available on Monday till Thursday ")
-    print(response)
-
 
 if __name__ == '__main__':
     _ = load_dotenv()
@@ -215,5 +189,3 @@ if __name__ == '__main__':
 
     sample_question = """I am Jettro, can you book a meeting for me with Daniel and Joey on Monday in Room 3?"""
     complete_agent(sample_question)
-    # reasoning_agent(sample_question)
-    # system_prompt_agent(sample_question)
